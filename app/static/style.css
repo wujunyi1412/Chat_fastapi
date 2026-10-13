@@ -65,8 +65,8 @@ button, input, textarea { font: inherit; }
 .message-actions button { border:0; background:rgba(255,255,255,.8); color:var(--muted); width:27px; height:27px; border-radius:8px; cursor:pointer; }
 .deleted .bubble-text { color:var(--muted); font-style:italic; }
 .load-more { display:block; margin:0 auto 18px; border:1px solid var(--line); color:var(--muted); background:var(--card); border-radius:20px; padding:7px 14px; cursor:pointer; }
-.empty-state { height:100%; display:flex; flex-direction:column; gap:6px; justify-content:center; align-items:center; color:var(--muted); text-align:center; }
-.empty-state b { color:var(--ink); font:700 20px Georgia,serif; }
+.new-messages { position:sticky; bottom:10px; z-index:3; display:block; margin:12px auto 0; border:0; border-radius:20px; padding:8px 15px; color:#fff; background:var(--green); box-shadow:0 5px 18px rgba(22,76,58,.28); font-size:12px; font-weight:700; cursor:pointer; }
+.new-messages[hidden] { display:none; }
 .typing { min-height:24px; padding:5px 22px 2px; color:var(--muted); font-size:11px; background:var(--paper); }
 .reply-bar { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 18px; background:#e9e4d9; border-top:1px solid var(--line); font-size:12px; }
 .reply-bar div { display:grid; min-width:0; }
@@ -92,4 +92,3 @@ dialog button { position:fixed; top:14px; right:18px; color:#fff; background:rgb
   .message-pane { padding:15px 10px; }
   .chat-header { padding:10px 13px; }
 }
-

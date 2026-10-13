@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>{{ user.room_name }} · 私语间</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=20261013-3">
 </head>
 <body class="chat-body">
   <div class="chat-shell">
@@ -20,7 +20,7 @@
     <main id="messagePane" class="message-pane" aria-live="polite">
       <button id="loadMore" class="load-more" hidden>加载更早消息</button>
       <div id="messages" class="messages"></div>
-      <div id="emptyState" class="empty-state" hidden><b>这里还很安静</b><span>发条消息，开启这个房间的对话。</span></div>
+      <button id="newMessages" class="new-messages" hidden>新消息 ↓</button>
     </main>
 
     <div id="typing" class="typing"></div>
@@ -38,6 +38,6 @@
     window.CHAT_USER = {{ user | tojson }};
     window.CHAT_CONFIG = {{ {"maxImageMb": settings.max_image_mb} | tojson }};
   </script>
-  <script src="/static/chat.js" defer></script>
+  <script src="/static/chat.js?v=20261013-3" defer></script>
 </body>
 </html>

@@ -8,7 +8,7 @@
   const sendButton = el('sendButton');
   const imageInput = el('imageInput');
   const loadMore = el('loadMore');
-  const emptyState = el('emptyState');
+  const newMessages = el('newMessages');
   const typingEl = el('typing');
   const statusText = el('statusText');
   const statusDot = document.querySelector('.status-dot');
@@ -16,6 +16,7 @@
   let oldestId = null;
   let replyTo = null;
   let reconnectDelay = 1000;
+  let pendingNewMessages = 0;
   let typingTimer;
   const typers = new Map();
 
@@ -35,6 +36,22 @@
     return message.content;
   }
 
+  function isNearBottom() {
+    return pane.scrollHeight - pane.scrollTop - pane.clientHeight < 100;
+  }
+
+  function scrollToBottom() {
+    pane.scrollTo({top: pane.scrollHeight, behavior: 'smooth'});
+    pendingNewMessages = 0;
+    newMessages.hidden = true;
+  }
+
+  function showNewMessageNotice() {
+    pendingNewMessages += 1;
+    newMessages.textContent = pendingNewMessages === 1 ? '新消息 ↓' : `${pendingNewMessages} 条新消息 ↓`;
+    newMessages.hidden = false;
+  }
+
   function renderMessage(message, prepend = false) {
     if (document.querySelector(`[data-message-id="${message.id}"]`)) return;
     const mine = message.user_id === user.id;
@@ -43,7 +60,8 @@
     article.dataset.messageId = message.id;
     article.dataset.message = JSON.stringify(message);
     const reply = message.reply_to_id ? `<div class="reply-preview"><b>${escapeHtml(message.reply_display_name || '消息')}</b> · ${escapeHtml((message.reply_kind === 'image' ? '[图片] ' : '') + (message.reply_content || ''))}</div>` : '';
-    const media = !message.deleted && message.kind === 'image' ? `<img src="/media/${encodeURIComponent(message.image_name)}" alt="${escapeHtml(message.content || '聊天图片')}" loading="lazy">` : '';
+    const dimensions = message.image_width && message.image_height ? ` width="${message.image_width}" height="${message.image_height}"` : '';
+    const media = !message.deleted && message.kind === 'image' ? `<img src="/media/${encodeURIComponent(message.image_name)}" alt="${escapeHtml(message.content || '聊天图片')}" loading="lazy"${dimensions}>` : '';
     const text = message.deleted ? '此消息已删除' : escapeHtml(message.content);
     article.innerHTML = `
       <div class="message-avatar">${escapeHtml(message.display_name.slice(0, 1))}</div>
@@ -54,7 +72,6 @@
       ${message.deleted ? '' : `<div class="message-actions"><button data-action="reply" title="回复">↩</button>${mine ? '<button data-action="delete" title="删除">×</button>' : ''}</div>`}`;
     if (prepend) messagesEl.prepend(article); else messagesEl.append(article);
     oldestId = oldestId === null ? message.id : Math.min(oldestId, message.id);
-    emptyState.hidden = true;
   }
 
   async function loadMessages(before = null) {
@@ -65,7 +82,6 @@
     const data = await response.json();
     data.items.slice().reverse().forEach((item) => renderMessage(item, true));
     loadMore.hidden = data.items.length < data.page_size;
-    emptyState.hidden = messagesEl.children.length > 0;
     if (before) pane.scrollTop += pane.scrollHeight - oldHeight;
     else pane.scrollTop = pane.scrollHeight;
   }
@@ -82,9 +98,10 @@
     socket.onmessage = ({data}) => {
       const event = JSON.parse(data);
       if (event.type === 'message') {
-        const nearBottom = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 140;
+        const nearBottom = isNearBottom();
         renderMessage(event.message);
-        if (nearBottom || event.message.user_id === user.id) pane.scrollTop = pane.scrollHeight;
+        if (nearBottom) pane.scrollTop = pane.scrollHeight;
+        else showNewMessageNotice();
       } else if (event.type === 'deleted') {
         const node = document.querySelector(`[data-message-id="${event.message_id}"]`);
         if (node) { node.classList.add('deleted'); node.querySelector('.bubble').innerHTML = '<div class="bubble-text">此消息已删除</div>'; node.querySelector('.message-actions')?.remove(); }
@@ -161,6 +178,13 @@
   });
   imageInput.addEventListener('change', () => uploadImage(imageInput.files[0]));
   loadMore.addEventListener('click', () => loadMessages(oldestId));
+  newMessages.addEventListener('click', scrollToBottom);
+  pane.addEventListener('scroll', () => {
+    if (isNearBottom()) {
+      pendingNewMessages = 0;
+      newMessages.hidden = true;
+    }
+  }, {passive:true});
   el('cancelReply').addEventListener('click', cancelReply);
   messagesEl.addEventListener('click', async (event) => {
     const article = event.target.closest('.message');
