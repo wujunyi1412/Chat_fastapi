@@ -1,0 +1,2 @@
+"""Lightweight private chat application."""
+

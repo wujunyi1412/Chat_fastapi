@@ -1,0 +1,19 @@
+[Unit]
+Description=Private Chat Service
+After=network.target
+
+[Service]
+Type=simple
+User=CHAT_USER
+Group=CHAT_USER
+WorkingDirectory=CHAT_PROJECT_DIR
+EnvironmentFile=CHAT_PROJECT_DIR/.env
+ExecStart=CHAT_PROJECT_DIR/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=3
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+

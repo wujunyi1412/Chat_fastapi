@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>登录 · 私语间</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="login-body">
+  <main class="login-card">
+    <div class="brand-mark">语</div>
+    <p class="eyebrow">PRIVATE CHAT</p>
+    <h1>进入私语间</h1>
+    <p class="login-intro">使用房间创建者提供的房间名、账号和密码。</p>
+    {% if error %}<div class="alert">{{ error }}</div>{% endif %}
+    <form action="/login" method="post" class="login-form">
+      <label>房间名<input name="room" value="{{ room or '' }}" autocomplete="organization" required placeholder="例如：friends"></label>
+      <label>账号<input name="username" value="{{ username or '' }}" autocomplete="username" required placeholder="你的账号"></label>
+      <label>密码<input name="password" type="password" autocomplete="current-password" required placeholder="至少 8 位"></label>
+      <button type="submit">进入聊天</button>
+    </form>
+    <p class="security-note">房间彼此隔离 · 图片仅房间成员可见</p>
+  </main>
+</body>
+</html>
+

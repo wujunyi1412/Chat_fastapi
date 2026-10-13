@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>{{ user.room_name }} · 私语间</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="chat-body">
+  <div class="chat-shell">
+    <header class="chat-header">
+      <div class="room-avatar">{{ user.room_name[:1] }}</div>
+      <div class="room-copy">
+        <h1>{{ user.room_name }}</h1>
+        <p><span class="status-dot"></span><span id="statusText">正在连接…</span></p>
+      </div>
+      <div class="me"><span>{{ user.display_name }}</span><form action="/logout" method="post"><button title="退出登录">退出</button></form></div>
+    </header>
+
+    <main id="messagePane" class="message-pane" aria-live="polite">
+      <button id="loadMore" class="load-more" hidden>加载更早消息</button>
+      <div id="messages" class="messages"></div>
+      <div id="emptyState" class="empty-state" hidden><b>这里还很安静</b><span>发条消息，开启这个房间的对话。</span></div>
+    </main>
+
+    <div id="typing" class="typing"></div>
+    <div id="replyBar" class="reply-bar" hidden><div><small>回复 <span id="replyName"></span></small><span id="replyText"></span></div><button id="cancelReply">×</button></div>
+    <footer class="composer">
+      <label class="image-button" title="发送图片">＋<input id="imageInput" type="file" accept="image/jpeg,image/png,image/webp" hidden></label>
+      <textarea id="messageInput" rows="1" maxlength="4000" placeholder="输入消息…（Enter 发送）"></textarea>
+      <button id="sendButton" class="send-button" aria-label="发送">➤</button>
+    </footer>
+    <div id="uploadProgress" class="upload-progress" hidden>正在处理图片…</div>
+  </div>
+  <div id="toast" class="toast" hidden></div>
+  <dialog id="imageViewer"><button id="closeViewer">×</button><img id="viewerImage" alt="图片预览"></dialog>
+  <script>
+    window.CHAT_USER = {{ user | tojson }};
+    window.CHAT_CONFIG = {{ {"maxImageMb": settings.max_image_mb} | tojson }};
+  </script>
+  <script src="/static/chat.js" defer></script>
+</body>
+</html>
