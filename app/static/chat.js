@@ -7,6 +7,9 @@
   const input = el('messageInput');
   const sendButton = el('sendButton');
   const imageInput = el('imageInput');
+  const emojiButton = el('emojiButton');
+  const emojiPanel = el('emojiPanel');
+  const notificationButton = el('notificationButton');
   const loadMore = el('loadMore');
   const newMessages = el('newMessages');
   const typingEl = el('typing');
@@ -17,8 +20,16 @@
   let replyTo = null;
   let reconnectDelay = 1000;
   let pendingNewMessages = 0;
+  let unreadTitleCount = 0;
   let typingTimer;
   const typers = new Map();
+  const baseTitle = document.title;
+  const emojis = [
+    '😀','😄','😁','😂','🤣','😊','🥰','😍','😘','😋','😎','🤩','🥳','😏',
+    '😅','🥹','😢','😭','😤','😡','🤔','🤭','🤫','😴','🙄','😮','😱','🤗',
+    '👍','👎','👌','✌️','🤝','👏','🙏','💪','👀','🎉','✨','🔥','❤️','💔','💯',
+    '🌹','🍉','☕','🎂','🎁','🐶','🐱','🌙','☀️','✅','❌'
+  ];
 
   function escapeHtml(value) {
     const node = document.createElement('div');
@@ -50,6 +61,55 @@
     pendingNewMessages += 1;
     newMessages.textContent = pendingNewMessages === 1 ? '新消息 ↓' : `${pendingNewMessages} 条新消息 ↓`;
     newMessages.hidden = false;
+  }
+
+  function insertAtCursor(value) {
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? input.value.length;
+    if (input.value.length - (end - start) + value.length > input.maxLength) {
+      showToast('消息已达到最大长度');
+      return;
+    }
+    input.value = input.value.slice(0, start) + value + input.value.slice(end);
+    const nextPosition = start + value.length;
+    input.setSelectionRange(nextPosition, nextPosition);
+    input.dispatchEvent(new Event('input'));
+    input.focus();
+  }
+
+  function setEmojiPanel(open) {
+    emojiPanel.hidden = !open;
+    emojiButton.setAttribute('aria-expanded', String(open));
+  }
+
+  function updateNotificationButton() {
+    if (!('Notification' in window)) {
+      notificationButton.hidden = true;
+      return;
+    }
+    notificationButton.classList.toggle('enabled', Notification.permission === 'granted');
+    notificationButton.classList.toggle('denied', Notification.permission === 'denied');
+    notificationButton.textContent = Notification.permission === 'denied' ? '🔕' : '🔔';
+    notificationButton.title = Notification.permission === 'granted' ? '新消息通知已开启' :
+      Notification.permission === 'denied' ? '浏览器已阻止通知，请在网站权限中修改' : '开启新消息通知';
+  }
+
+  function notifyIncomingMessage(message) {
+    if (message.user_id === user.id || !document.hidden) return;
+    unreadTitleCount += 1;
+    document.title = `(${unreadTitleCount}) ${baseTitle}`;
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const prefix = message.kind === 'image' ? '[图片] ' : '';
+      const body = (prefix + (message.content || '')).trim() || '[图片]';
+      const notification = new Notification(`${message.display_name} · ${user.room_name}`, {
+        body: body.length > 100 ? `${body.slice(0, 100)}…` : body,
+        tag: `chat-message-${message.id}`,
+      });
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+    }
   }
 
   function renderMessage(message, prepend = false) {
@@ -102,6 +162,7 @@
         renderMessage(event.message);
         if (nearBottom) pane.scrollTop = pane.scrollHeight;
         else showNewMessageNotice();
+        notifyIncomingMessage(event.message);
       } else if (event.type === 'deleted') {
         const node = document.querySelector(`[data-message-id="${event.message_id}"]`);
         if (node) { node.classList.add('deleted'); node.querySelector('.bubble').innerHTML = '<div class="bubble-text">此消息已删除</div>'; node.querySelector('.message-actions')?.remove(); }
@@ -177,6 +238,32 @@
     }
   });
   imageInput.addEventListener('change', () => uploadImage(imageInput.files[0]));
+  emojis.forEach((emoji) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = emoji;
+    button.setAttribute('aria-label', `插入 ${emoji}`);
+    button.addEventListener('click', () => insertAtCursor(emoji));
+    emojiPanel.appendChild(button);
+  });
+  emojiButton.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setEmojiPanel(emojiPanel.hidden);
+  });
+  emojiPanel.addEventListener('click', (event) => event.stopPropagation());
+  document.addEventListener('click', () => setEmojiPanel(false));
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') setEmojiPanel(false); });
+  notificationButton.addEventListener('click', async () => {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') await Notification.requestPermission();
+    updateNotificationButton();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      unreadTitleCount = 0;
+      document.title = baseTitle;
+    }
+  });
   loadMore.addEventListener('click', () => loadMessages(oldestId));
   newMessages.addEventListener('click', scrollToBottom);
   pane.addEventListener('scroll', () => {
@@ -201,5 +288,6 @@
   el('imageViewer').addEventListener('click', (event) => { if (event.target === el('imageViewer')) el('imageViewer').close(); });
 
   loadMessages().catch(() => showToast('历史消息加载失败'));
+  updateNotificationButton();
   connect();
 })();
