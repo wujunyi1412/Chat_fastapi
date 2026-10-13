@@ -362,6 +362,29 @@ cd ~/private-chat
 
 不同房间之间看不到彼此的账号、消息和图片。
 
+## 永久删除房间及其用户
+
+先查看房间标识：
+
+```bash
+cd ~/private-chat
+.venv/bin/python manage.py list
+```
+
+然后执行删除命令：
+
+```bash
+.venv/bin/python manage.py delete-room family
+```
+
+工具会先显示即将删除的账号、消息和图片数量，并要求再次输入房间标识。确认后将永久删除该房间、房间内所有用户、聊天记录和图片，此操作无法撤销。建议先按照“备份与恢复”一节创建备份。
+
+自动化脚本可以增加 `--yes` 跳过确认，但日常操作不建议使用：
+
+```bash
+.venv/bin/python manage.py delete-room family --yes
+```
+
 ---
 
 # 备份与恢复

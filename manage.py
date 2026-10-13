@@ -6,6 +6,7 @@ import secrets
 import sys
 
 from app import database as db
+from app.config import settings
 from app.security import hash_password
 
 
@@ -88,6 +89,54 @@ def command_disable(args: argparse.Namespace) -> None:
     print("账号已停用，现有会话也将失效")
 
 
+def command_delete_room(args: argparse.Namespace) -> None:
+    from app.database import connect
+
+    room = get_room_or_exit(args.room)
+    with connect() as conn:
+        user_count = conn.execute("SELECT COUNT(*) FROM users WHERE room_id=?", (room["id"],)).fetchone()[0]
+        message_count = conn.execute("SELECT COUNT(*) FROM messages WHERE room_id=?", (room["id"],)).fetchone()[0]
+        image_names = [
+            row["image_name"]
+            for row in conn.execute(
+                "SELECT image_name FROM messages WHERE room_id=? AND image_name IS NOT NULL",
+                (room["id"],),
+            ).fetchall()
+        ]
+
+    if not args.yes:
+        print(f"即将永久删除房间：{room['name']} ({room['slug']})")
+        print(f"同时删除：{user_count} 个账号、{message_count} 条消息、{len(image_names)} 张图片")
+        confirmation = input(f"请输入房间标识 {room['slug']} 确认删除：").strip()
+        if confirmation != room["slug"]:
+            raise SystemExit("输入不匹配，已取消删除")
+
+    with connect() as conn:
+        # Clear self-references first, then delete in an explicit order.
+        conn.execute("UPDATE messages SET reply_to_id=NULL WHERE room_id=?", (room["id"],))
+        conn.execute("DELETE FROM messages WHERE room_id=?", (room["id"],))
+        conn.execute("DELETE FROM users WHERE room_id=?", (room["id"],))
+        conn.execute("DELETE FROM rooms WHERE id=?", (room["id"],))
+
+    upload_root = settings.upload_dir.resolve()
+    removed_images = 0
+    for image_name in image_names:
+        target = (upload_root / image_name).resolve()
+        if target.parent != upload_root:
+            print(f"警告：跳过异常图片路径 {image_name}", file=sys.stderr)
+            continue
+        try:
+            target.unlink(missing_ok=True)
+            removed_images += 1
+        except OSError as exc:
+            print(f"警告：无法删除图片 {image_name}：{exc}", file=sys.stderr)
+
+    print(
+        f"已永久删除房间 {room['slug']}："
+        f"{user_count} 个账号、{message_count} 条消息、{removed_images} 张图片"
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="私语间管理工具")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -112,6 +161,10 @@ def build_parser() -> argparse.ArgumentParser:
     disable.add_argument("room", type=valid_slug)
     disable.add_argument("username")
     disable.set_defaults(func=command_disable)
+    delete_room = sub.add_parser("delete-room", help="永久删除房间及其账号、消息和图片")
+    delete_room.add_argument("room", type=valid_slug)
+    delete_room.add_argument("--yes", action="store_true", help="跳过交互确认（谨慎使用）")
+    delete_room.set_defaults(func=command_delete_room)
     return parser
 
 
@@ -123,4 +176,3 @@ if __name__ == "__main__":
     except ValueError as exc:
         print(f"错误：{exc}", file=sys.stderr)
         raise SystemExit(2) from None
-
