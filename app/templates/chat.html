@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>{{ user.room_name }} · 私语间</title>
-  <link rel="stylesheet" href="/static/style.css?v=20261013-5">
+  <link rel="stylesheet" href="/static/style.css?v=20261013-6">
 </head>
 <body class="chat-body">
   <div class="chat-shell">
@@ -45,6 +45,6 @@
     window.CHAT_USER = {{ user | tojson }};
     window.CHAT_CONFIG = {{ {"maxImageMb": settings.max_image_mb} | tojson }};
   </script>
-  <script src="/static/chat.js?v=20261013-5" defer></script>
+  <script src="/static/chat.js?v=20261013-6" defer></script>
 </body>
 </html>

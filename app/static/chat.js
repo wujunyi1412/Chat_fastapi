@@ -23,6 +23,7 @@
   let pendingNewMessages = 0;
   let unreadTitleCount = 0;
   let uploadInProgress = false;
+  let notificationAudioContext = null;
   let typingTimer;
   const typers = new Map();
   const baseTitle = document.title;
@@ -96,18 +97,53 @@
       Notification.permission === 'denied' ? '浏览器已阻止通知，请在网站权限中修改' : '开启新消息通知';
   }
 
+  async function enableNotificationSound() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    if (!notificationAudioContext) notificationAudioContext = new AudioContextClass();
+    if (notificationAudioContext.state === 'suspended') await notificationAudioContext.resume();
+  }
+
+  function playNotificationSound() {
+    const context = notificationAudioContext;
+    if (!context || context.state !== 'running') return;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(660, context.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(880, context.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.12, context.currentTime + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.22);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.23);
+  }
+
+  function createSystemNotification(title, options) {
+    try {
+      return new Notification(title, options);
+    } catch (error) {
+      showToast('浏览器无法显示系统通知，请检查 macOS 通知设置');
+      return null;
+    }
+  }
+
   function notifyIncomingMessage(message) {
-    if (message.user_id === user.id || !document.hidden) return;
+    if (message.user_id === user.id) return;
+    playNotificationSound();
+    if (!document.hidden) return;
     unreadTitleCount += 1;
     document.title = `(${unreadTitleCount}) ${baseTitle}`;
     if ('Notification' in window && Notification.permission === 'granted') {
       const prefix = message.kind === 'image' ? '[图片] ' : '';
       const body = (prefix + (message.content || '')).trim() || '[图片]';
-      const notification = new Notification(`${message.display_name} · ${user.room_name}`, {
+      const notification = createSystemNotification(`${message.display_name} · ${user.room_name}`, {
         body: body.length > 100 ? `${body.slice(0, 100)}…` : body,
         tag: `chat-message-${message.id}`,
       });
-      notification.onclick = () => {
+      if (notification) notification.onclick = () => {
         window.focus();
         notification.close();
       };
@@ -299,9 +335,26 @@
   document.addEventListener('click', () => setEmojiPanel(false));
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape') setEmojiPanel(false); });
   notificationButton.addEventListener('click', async () => {
-    if (!('Notification' in window)) return;
+    if (!('Notification' in window)) {
+      showToast('当前浏览器不支持系统通知');
+      return;
+    }
+    await enableNotificationSound();
     if (Notification.permission === 'default') await Notification.requestPermission();
     updateNotificationButton();
+    if (Notification.permission === 'granted') {
+      showToast('通知和提示音已开启');
+      playNotificationSound();
+      const notification = createSystemNotification('私语间通知已开启', {
+        body: '以后网页在后台时，新消息会显示在这里。',
+        tag: 'chat-notification-test',
+      });
+      if (notification) setTimeout(() => notification.close(), 5000);
+    } else if (Notification.permission === 'denied') {
+      showToast('通知已被阻止，请在浏览器和 macOS 设置中允许');
+    } else {
+      showToast('尚未授予通知权限');
+    }
   });
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
