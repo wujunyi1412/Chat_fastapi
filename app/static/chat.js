@@ -10,6 +10,10 @@
   const emojiButton = el('emojiButton');
   const emojiPanel = el('emojiPanel');
   const screenshotButton = el('screenshotButton');
+  const captureEditor = el('captureEditor');
+  const captureCanvas = el('captureCanvas');
+  const cancelCapture = el('cancelCapture');
+  const sendCapture = el('sendCapture');
   const notificationButton = el('notificationButton');
   const loadMore = el('loadMore');
   const newMessages = el('newMessages');
@@ -24,6 +28,9 @@
   let unreadTitleCount = 0;
   let uploadInProgress = false;
   let notificationAudioContext = null;
+  let captureSource = null;
+  let captureSelection = null;
+  let captureStart = null;
   let typingTimer;
   const typers = new Map();
   const baseTitle = document.title;
@@ -287,15 +294,90 @@
       const context = canvas.getContext('2d');
       if (!context) throw new Error('无法创建截图画布');
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', 0.9));
-      if (!blob) throw new Error('截图生成失败');
-      await uploadImage(new File([blob], `screenshot-${Date.now()}.webp`, {type:'image/webp'}));
+      captureSource = canvas;
+      captureSelection = null;
+      captureCanvas.width = canvas.width;
+      captureCanvas.height = canvas.height;
+      drawCaptureEditor();
+      captureEditor.showModal();
     } catch (error) {
       if (error.name !== 'NotAllowedError' && error.name !== 'AbortError') showToast(error.message || '截图失败');
     } finally {
       stream?.getTracks().forEach((track) => track.stop());
     }
   }
+
+  function capturePoint(event) {
+    const rect = captureCanvas.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(captureCanvas.width, (event.clientX - rect.left) * captureCanvas.width / rect.width)),
+      y: Math.max(0, Math.min(captureCanvas.height, (event.clientY - rect.top) * captureCanvas.height / rect.height))
+    };
+  }
+
+  function normalizedCaptureSelection() {
+    if (!captureSelection) return null;
+    const x = Math.min(captureSelection.x1, captureSelection.x2);
+    const y = Math.min(captureSelection.y1, captureSelection.y2);
+    const width = Math.abs(captureSelection.x2 - captureSelection.x1);
+    const height = Math.abs(captureSelection.y2 - captureSelection.y1);
+    return width >= 5 && height >= 5 ? {x, y, width, height} : null;
+  }
+
+  function drawCaptureEditor() {
+    if (!captureSource) return;
+    const context = captureCanvas.getContext('2d');
+    context.drawImage(captureSource, 0, 0);
+    const selected = normalizedCaptureSelection();
+    if (!selected) return;
+    context.fillStyle = 'rgba(0, 0, 0, .48)';
+    context.fillRect(0, 0, captureCanvas.width, captureCanvas.height);
+    context.drawImage(captureSource, selected.x, selected.y, selected.width, selected.height,
+      selected.x, selected.y, selected.width, selected.height);
+    context.strokeStyle = '#36d989';
+    context.lineWidth = Math.max(2, captureCanvas.width / 900);
+    context.strokeRect(selected.x, selected.y, selected.width, selected.height);
+  }
+
+  captureCanvas.addEventListener('pointerdown', (event) => {
+    captureStart = capturePoint(event);
+    captureSelection = {x1:captureStart.x, y1:captureStart.y, x2:captureStart.x, y2:captureStart.y};
+    captureCanvas.setPointerCapture(event.pointerId);
+  });
+  captureCanvas.addEventListener('pointermove', (event) => {
+    if (!captureStart) return;
+    const point = capturePoint(event);
+    captureSelection.x2 = point.x;
+    captureSelection.y2 = point.y;
+    drawCaptureEditor();
+  });
+  captureCanvas.addEventListener('pointerup', (event) => {
+    if (!captureStart) return;
+    const point = capturePoint(event);
+    captureSelection.x2 = point.x;
+    captureSelection.y2 = point.y;
+    captureStart = null;
+    drawCaptureEditor();
+  });
+  cancelCapture.addEventListener('click', () => captureEditor.close());
+  sendCapture.addEventListener('click', async () => {
+    if (!captureSource) return;
+    const selected = normalizedCaptureSelection() || {x:0, y:0, width:captureSource.width, height:captureSource.height};
+    const output = document.createElement('canvas');
+    output.width = Math.round(selected.width);
+    output.height = Math.round(selected.height);
+    output.getContext('2d').drawImage(captureSource, selected.x, selected.y, selected.width, selected.height,
+      0, 0, output.width, output.height);
+    const blob = await new Promise((resolve) => output.toBlob(resolve, 'image/webp', 0.9));
+    if (!blob) return showToast('截图生成失败');
+    captureEditor.close();
+    await uploadImage(new File([blob], `screenshot-${Date.now()}.webp`, {type:'image/webp'}));
+  });
+  captureEditor.addEventListener('close', () => {
+    captureSource = null;
+    captureSelection = null;
+    captureStart = null;
+  });
 
   sendButton.addEventListener('click', sendMessage);
   input.addEventListener('keydown', (event) => {

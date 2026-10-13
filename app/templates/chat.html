@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>{{ user.room_name }} · 私语间</title>
-  <link rel="stylesheet" href="/static/style.css?v=20261013-6">
+  <link rel="stylesheet" href="/static/style.css?v=20261013-8">
 </head>
 <body class="chat-body">
   <div class="chat-shell">
@@ -41,10 +41,20 @@
   </div>
   <div id="toast" class="toast" hidden></div>
   <dialog id="imageViewer"><button id="closeViewer">×</button><img id="viewerImage" alt="图片预览"></dialog>
+  <dialog id="captureEditor" class="capture-editor">
+    <div class="capture-stage"><canvas id="captureCanvas"></canvas></div>
+    <div class="capture-toolbar">
+      <span>按住鼠标拖动选择区域；不框选则发送整张截图</span>
+      <div>
+        <button id="cancelCapture" type="button">取消</button>
+        <button id="sendCapture" class="capture-confirm" type="button">发送截图</button>
+      </div>
+    </div>
+  </dialog>
   <script>
     window.CHAT_USER = {{ user | tojson }};
     window.CHAT_CONFIG = {{ {"maxImageMb": settings.max_image_mb} | tojson }};
   </script>
-  <script src="/static/chat.js?v=20261013-6" defer></script>
+  <script src="/static/chat.js?v=20261013-8" defer></script>
 </body>
 </html>
