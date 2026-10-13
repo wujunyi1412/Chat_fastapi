@@ -9,6 +9,7 @@
   const imageInput = el('imageInput');
   const emojiButton = el('emojiButton');
   const emojiPanel = el('emojiPanel');
+  const screenshotButton = el('screenshotButton');
   const notificationButton = el('notificationButton');
   const loadMore = el('loadMore');
   const newMessages = el('newMessages');
@@ -21,6 +22,7 @@
   let reconnectDelay = 1000;
   let pendingNewMessages = 0;
   let unreadTitleCount = 0;
+  let uploadInProgress = false;
   let typingTimer;
   const typers = new Map();
   const baseTitle = document.title;
@@ -212,7 +214,9 @@
 
   async function uploadImage(file) {
     if (!file) return;
+    if (uploadInProgress) return showToast('上一张图片仍在发送中');
     if (file.size > config.maxImageMb * 1024 * 1024) return showToast(`图片不能超过 ${config.maxImageMb} MB`);
+    uploadInProgress = true;
     const form = new FormData();
     form.append('image', file);
     form.append('caption', input.value.trim());
@@ -223,7 +227,38 @@
       if (!response.ok) { const body = await response.json(); throw new Error(body.detail || '图片发送失败'); }
       input.value = ''; cancelReply();
     } catch (error) { showToast(error.message); }
-    finally { el('uploadProgress').hidden = true; imageInput.value = ''; }
+    finally { uploadInProgress = false; el('uploadProgress').hidden = true; imageInput.value = ''; }
+  }
+
+  async function captureScreenshot() {
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      showToast('当前浏览器不支持网页截图');
+      return;
+    }
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({video:true, audio:false});
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.muted = true;
+      await video.play();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const maxDimension = 2560;
+      const scale = Math.min(1, maxDimension / Math.max(video.videoWidth, video.videoHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('无法创建截图画布');
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', 0.9));
+      if (!blob) throw new Error('截图生成失败');
+      await uploadImage(new File([blob], `screenshot-${Date.now()}.webp`, {type:'image/webp'}));
+    } catch (error) {
+      if (error.name !== 'NotAllowedError' && error.name !== 'AbortError') showToast(error.message || '截图失败');
+    } finally {
+      stream?.getTracks().forEach((track) => track.stop());
+    }
   }
 
   sendButton.addEventListener('click', sendMessage);
@@ -238,6 +273,16 @@
     }
   });
   imageInput.addEventListener('change', () => uploadImage(imageInput.files[0]));
+  screenshotButton.addEventListener('click', captureScreenshot);
+  if (!navigator.mediaDevices?.getDisplayMedia) screenshotButton.hidden = true;
+  document.addEventListener('paste', (event) => {
+    const imageItem = [...(event.clipboardData?.items || [])].find((item) => item.type.startsWith('image/'));
+    if (!imageItem) return;
+    const file = imageItem.getAsFile();
+    if (!file) return;
+    event.preventDefault();
+    uploadImage(file);
+  });
   emojis.forEach((emoji) => {
     const button = document.createElement('button');
     button.type = 'button';
